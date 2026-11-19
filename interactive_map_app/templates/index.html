@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architectural Site Selector & Archicad Generator</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1a1a1a;
+      background: #f4f4f2;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #sidebar {
+      width: 440px;
+      min-width: 440px;
+      background: #ffffff;
+      border-right: 1px solid #e0e0dc;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 1000;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.06);
+    }
+    #map-container {
+      flex: 1;
+      height: 100vh;
+      position: relative;
+      background: #1e2229;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+      background: #1e2229;
+    }
+    .leaflet-container {
+      background: #1e2229 !important;
+    }
+    .leaflet-tile {
+      visibility: inherit !important;
+      image-rendering: auto;
+    }
+    .leaflet-tile-container {
+      will-change: transform;
+    }
+    .panel-header {
+      padding: 18px 24px;
+      background: #1e2229;
+      color: #ffffff;
+      border-bottom: 1px solid #333a46;
+    }
+    .panel-header h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .panel-header p {
+      font-size: 11.5px;
+      color: #a0aec0;
+      line-height: 1.4;
+    }
+    .section {
+      padding: 16px 22px;
+      border-bottom: 1px solid #edebe6;
+    }
+    .section-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+    .input-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .input-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 3px;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 7px 9px;
+      border: 1px solid #cbd5e0;
+      border-radius: 4px;
+      font-size: 12.5px;
+      color: #1a202c;
+      background: #ffffff;
+    }
+    .input-group input:focus {
+      outline: none;
+      border-color: #3182ce;
+      box-shadow: 0 0 0 2px rgba(49,130,206,0.2);
+    }
+    .action-bar {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .btn {
+      flex: 1;
+      padding: 9px 12px;
+      border: none;
+      border-radius: 4px;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: #2b6cb0;
+      color: #ffffff;
+    }
+    .btn-primary:hover { background: #2c5282; }
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #2d3748;
+    }
+    .btn-secondary:hover { background: #cbd5e0; }
+    .btn-danger {
+      background: #fed7d7;
+      color: #9b2c2c;
+    }
+    .btn-danger:hover { background: #feb2b2; }
+    .btn-active-drawing {
+      background: #c53030 !important;
+      color: #ffffff !important;
+      animation: pulse 1.5s infinite;
+    }
+    .btn-active-neighbor {
+      background: #475569 !important;
+      color: #ffffff !important;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.82; }
+      100% { opacity: 1; }
+    }
+    .neighbor-card {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+    }
+    .neighbor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .neighbor-header-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #334155;
+    }
+    .neighbor-badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: #e2e8f0;
+      color: #334155;
+    }
+    .neighbor-list {
+      max-height: 140px;
+      overflow-y: auto;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .neighbor-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      font-size: 11.5px;
+    }
+    .neighbor-item-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .neighbor-item-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      background: #475569;
+    }
+    .neighbor-del-btn {
+      background: none;
+      border: none;
+      color: #e53e3e;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .neighbor-del-btn:hover {
+      background: #fed7d7;
+    }
+    .metrics-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      font-size: 11.5px;
+    }
+    .metrics-table td {
+      padding: 6px 0;
+      border-bottom: 1px dotted #e2e8f0;
+    }
+    .metrics-table td.label {
+      color: #4a5568;
+      font-weight: 500;
+    }
+    .metrics-table td.value {
+      text-align: right;
+      font-weight: 700;
+      color: #1a202c;
+      font-family: monospace, sans-serif;
+      font-size: 12px;
+    }
+    .metric-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .badge-fsi { background: #e6fffa; color: #234e52; }
+    .badge-coverage { background: #ebf8ff; color: #2a4365; }
+    .download-section {
+      background: #fafaf8;
+      padding: 16px 22px;
+    }
+    .download-btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 9px 12px;
+      margin-bottom: 8px;
+      background: #2d3748;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 11.5px;
+      font-weight: 600;
+      transition: background 0.15s;
+    }
+    .download-btn:hover { background: #1a202c; }
+    .download-btn.secondary {
+      background: #edf2f7;
+      color: #2d3748;
+      border: 1px solid #cbd5e0;
+    }
+    .download-btn.secondary:hover { background: #e2e8f0; }
+    .status-box {
+      margin-top: 10px;
+      padding: 9px 12px;
+      border-radius: 4px;
+      background: #ebf8ff;
+      border-left: 4px solid #3182ce;
+      font-size: 11px;
+      color: #2b6cb0;
+      line-height: 1.4;
+    }
+
+    /* Modal Backdrop for Neighbor Heights */
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.65);
+      z-index: 2000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-card {
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 20px 24px;
+      width: 360px;
+      box-shadow: 0 16px 36px rgba(0,0,0,0.28);
+    }
+    .modal-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 4px;
+    }
+    .modal-subtitle {
+      font-size: 11.5px;
+      color: #64748b;
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+    .modal-field {
+      margin-bottom: 12px;
+    }
+    .modal-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 4px;
+    }
+    .modal-field input {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid #cbd5e0;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .modal-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .modal-summary {
+      margin-top: 4px;
+      margin-bottom: 16px;
+      padding: 8px 10px;
+      background: #f1f5f9;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #475569;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <div class="panel-header">
+      <h1>Site Context & BIM Analyzer</h1>
+      <p>Pan to any location in India, draw a plot boundary to calculate setbacks, ground coverage, and export Archicad 29 models.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-title">1. Draw Plot & Parameters</div>
+      
+      <div style="margin-bottom: 10px; display: flex; gap: 6px;">
+        <input type="text" id="input-search" placeholder="Search any city, street, or landmark in India..." style="flex: 1; padding: 7px 10px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 12px;" onkeydown="if(event.key==='Enter') searchLocation()">
+        <button class="btn btn-secondary" style="flex: 0 0 auto; padding: 7px 12px; font-size: 11px;" onclick="searchLocation()">Go</button>
+      </div>
+
+      <div class="action-bar" style="margin-top: 0; margin-bottom: 10px;">
+        <button id="btn-draw-plot" class="btn btn-primary" onclick="toggleDrawingPlot()">Start Drawing Plot</button>
+        <button class="btn btn-secondary" onclick="clearPlot()">Clear Plot</button>
+      </div>
+
+      <div class="input-grid">
+        <div class="input-group">
+          <label for="setback-m">Municipal Setback (m)</label>
+          <input type="number" id="setback-m" value="3.0" min="0.5" max="25" step="0.5" onchange="recalculate()">
+        </div>
+        <div class="input-group">
+          <label for="floors-n">Proposed Floors</label>
+          <input type="number" id="floors-n" value="3" min="1" max="60" step="1" onchange="recalculate()">
+        </div>
+        <div class="input-group">
+          <label for="floor-height-m">Floor Height (m)</label>
+          <input type="number" id="floor-height-m" value="3.2" min="2.5" max="6.0" step="0.1" onchange="recalculate()">
+        </div>
+        <div class="input-group">
+          <label for="plot-name">Project Label</label>
+          <input type="text" id="plot-name" value="Plot_Proposal_A" onchange="recalculate()">
+        </div>
+      </div>
+
+      <!-- Dedicated Neighborhood Rooftop Mapping Card -->
+      <div class="neighbor-card">
+        <div class="neighbor-header">
+          <span class="neighbor-header-title">Surrounding Neighbor Buildings</span>
+          <span id="badge-neighbor-count" class="neighbor-badge">0 Mapped</span>
+        </div>
+        <div style="font-size: 11px; color: #64748b; line-height: 1.4; margin-bottom: 8px;">
+          Trace the neighboring rooftops directly over the satellite imagery to record their exact positions, storeys, and 3D BIM massing.
+        </div>
+        <div class="action-bar" style="margin-top: 0; margin-bottom: 6px;">
+          <button id="btn-draw-neighbor" class="btn btn-secondary" style="border: 1px solid #94a3b8; font-weight: 700;" onclick="toggleDrawingNeighbor()">+ Map Neighbor Building</button>
+          <button class="btn btn-secondary" style="flex: 0 0 auto; padding: 7px 10px; font-size: 11px;" onclick="clearAllNeighbors()" title="Clear all mapped neighbors">Clear All</button>
+        </div>
+        <div id="neighbor-list" class="neighbor-list">
+          <div id="neighbor-empty-msg" style="padding: 8px 10px; text-align: center; color: #94a3b8; font-size: 11px;">
+            No neighbor buildings mapped yet. Click "+ Map Neighbor Building" to outline surrounding rooftops.
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 10px; padding: 8px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; color: #475569; cursor: pointer;">
+          <input type="checkbox" id="chk-context" checked onchange="recalculate()">
+          Fetch real surrounding roads from OpenStreetMap
+        </label>
+        <div style="font-size: 10px; color: #94a3b8; margin-top: 4px; padding-left: 24px;">
+          Road data from OSM is accurate. Neighbor buildings are traced manually from the satellite -- never auto-generated.
+        </div>
+      </div>
+
+      <div id="draw-instruction" class="status-box">
+        Click "Start Drawing Plot", then click 3 or more points on the map to define the boundary. Then click "+ Map Neighbor Building" to trace surrounding rooftops!
+      </div>
+    </div>
+
+    <div class="section" id="results-section">
+      <div class="section-title">2. Real-Time BIM & Urban Metrics</div>
+      <table class="metrics-table">
+        <tbody>
+          <tr>
+            <td class="label">Plot Boundary Area</td>
+            <td class="value" id="val-plot-area">0.00 sq.m (0.00 sq.ft)</td>
+          </tr>
+          <tr>
+            <td class="label">Plot Perimeter</td>
+            <td class="value" id="val-perimeter">0.00 m</td>
+          </tr>
+          <tr>
+            <td class="label">Municipal Setback Area Lost</td>
+            <td class="value" id="val-setback-loss">0.00 sq.m</td>
+          </tr>
+          <tr>
+            <td class="label">Net Buildable Footprint</td>
+            <td class="value" id="val-buildable-area">0.00 sq.m</td>
+          </tr>
+          <tr>
+            <td class="label">Permissible Ground Coverage</td>
+            <td class="value"><span class="metric-badge badge-coverage" id="val-coverage">0.0%</span></td>
+          </tr>
+          <tr>
+            <td class="label">Total Built-Up Area (GFA)</td>
+            <td class="value" id="val-gfa">0.00 sq.m</td>
+          </tr>
+          <tr>
+            <td class="label">Floor Space Index (FSI / FAR)</td>
+            <td class="value"><span class="metric-badge badge-fsi" id="val-fsi">0.00</span></td>
+          </tr>
+          <tr>
+            <td class="label">Cartographic CRS</td>
+            <td class="value" id="val-crs">EPSG:32643 (UTM 43N)</td>
+          </tr>
+          <tr>
+            <td class="label">Survey Point (Easting, Northing)</td>
+            <td class="value" id="val-survey-point">-</td>
+          </tr>
+          <tr>
+            <td class="label">Neighbor Buildings in BIM</td>
+            <td class="value" id="val-context-buildings">0</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section download-section" id="download-section">
+      <div class="section-title">3. Archicad 29 Deliverables</div>
+      <a id="btn-dl-ifc" href="#" class="download-btn" style="background: #2b6cb0;" onclick="downloadAsset('ifc')">Download Native 3D BIM (.IFC) [Recommended]</a>
+      <a id="btn-dl-2d" href="#" class="download-btn secondary" onclick="downloadAsset('2d')">Download 2D Site Plan (.DXF)</a>
+      <a id="btn-dl-3d" href="#" class="download-btn secondary" onclick="downloadAsset('3d')">Download 3D Massing (.DXF)</a>
+      <a id="btn-dl-origin" href="#" class="download-btn secondary" onclick="downloadAsset('origin')">Download Survey Point (.JSON)</a>
+      <div style="font-size: 11px; color: #718096; line-height: 1.4; margin-top: 8px;">
+        Open the <strong>.IFC</strong> file directly in Archicad via <strong>File > Open</strong> for native 3D BIM elements (proposed building + neighbor massing blocks), or merge the <strong>.DXF</strong> files into your site worksheet!
+      </div>
+    </div>
+  </div>
+
+  <div id="map-container">
+    <div id="map"></div>
+
+    <!-- Modal for Neighbor Building Details -->
+    <div id="neighbor-modal" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-title">Map Neighbor Building</div>
+        <div class="modal-subtitle">Specify building storeys and height for 3D extrusion and Archicad BIM modeling.</div>
+
+        <div class="modal-field">
+          <label for="modal-nb-name">Building Label / Identifier</label>
+          <input type="text" id="modal-nb-name" value="Neighbor Block 1">
+        </div>
+
+        <div class="modal-row">
+          <div class="modal-field">
+            <label for="modal-nb-floors">Number of Floors</label>
+            <input type="number" id="modal-nb-floors" value="3" min="1" max="60" step="1" oninput="updateModalSummary()">
+          </div>
+          <div class="modal-field">
+            <label for="modal-nb-fheight">Floor Height (m)</label>
+            <input type="number" id="modal-nb-fheight" value="3.2" min="2.0" max="6.0" step="0.1" oninput="updateModalSummary()">
+          </div>
+        </div>
+
+        <div class="modal-summary">
+          Total 3D Extruded Height: <strong id="modal-nb-total-h" style="color: #1e293b;">9.6 meters</strong>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-secondary" style="flex: 0 0 auto; padding: 8px 14px;" onclick="cancelNeighborModal()">Cancel</button>
+          <button class="btn btn-primary" style="flex: 1; padding: 8px 14px;" onclick="saveNeighborModal()">Save & Add to Site</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize High-Performance Leaflet Map with Google Satellite default
+    const map = L.map('map', {
+      maxZoom: 22,
+      minZoom: 3,
+      fadeAnimation: false,
+      zoomAnimation: true,
+      preferCanvas: true,
+      wheelDebounceTime: 30,
+      wheelPxPerZoomLevel: 90
+    }).setView([23.0300, 72.5600], 14);
+
+    // Global High-Speed CDN Tile Providers
+    const googleHybrid = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      subdomains: ['0', '1', '2', '3'],
+      maxNativeZoom: 18,
+      maxZoom: 22,
+      keepBuffer: 12,
+      updateWhenIdle: true,
+      attribution: 'Map data © Google'
+    }).addTo(map);
+
+    const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      subdomains: ['a', 'b', 'c', 'd'],
+      maxNativeZoom: 18,
+      maxZoom: 22,
+      keepBuffer: 12,
+      updateWhenIdle: true,
+      attribution: '© CartoDB / OpenStreetMap'
+    });
+
+    const googleStreets = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      subdomains: ['0', '1', '2', '3'],
+      maxNativeZoom: 18,
+      maxZoom: 22,
+      keepBuffer: 12,
+      updateWhenIdle: true,
+      attribution: 'Map data © Google'
+    });
+
+    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxNativeZoom: 18,
+      maxZoom: 22,
+      keepBuffer: 12,
+      updateWhenIdle: true,
+      attribution: 'Tiles © Esri'
+    });
+
+    const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxNativeZoom: 18,
+      maxZoom: 22,
+      keepBuffer: 12,
+      updateWhenIdle: true,
+      attribution: '© OpenStreetMap contributors'
+    });
+
+    L.control.layers({
+      "Google Hybrid (Satellite + Labels) [Fastest]": googleHybrid,
+      "CartoDB Clean Street [Cloudflare CDN]": cartoVoyager,
+      "Google Standard Streets": googleStreets,
+      "Esri World Imagery (Satellite)": esriSatellite,
+      "OpenStreetMap Standard": osmStandard
+    }, null, { position: 'topright', collapsed: false }).addTo(map);
+
+    // Application State
+    // Drawing modes: null | 'plot' | 'neighbor'
+    let currentDrawMode = null;
+
+    // Main Plot State
+    let plotPoints = [];
+    let tempPlotMarkers = [];
+    let tempPlotPolyline = null;
+    let plotPolygon = null;
+    let setbackPolygon = null;
+
+    // User Neighbor Buildings State
+    let userNeighbors = []; // Array of { id, name, floors, floorHeight, height_m, coordinates, layer }
+    let neighborDrawPoints = [];
+    let tempNeighborMarkers = [];
+    let tempNeighborPolyline = null;
+    let pendingNeighborCoords = [];
+
+    // Context Layers
+    const userNeighborsLayerGroup = L.layerGroup().addTo(map);
+    const contextBuildingsLayer = L.layerGroup().addTo(map);
+    const contextRoadsLayer = L.layerGroup().addTo(map);
+    let currentCalculationToken = null;
+
+    // Location search
+    async function searchLocation() {
+      const q = document.getElementById('input-search').value.trim();
+      if (!q) return;
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+        const results = await res.json();
+        if (results && results.length > 0) {
+          const top = results[0];
+          map.flyTo([parseFloat(top.lat), parseFloat(top.lon)], 17, { duration: 1.2 });
+        } else {
+          alert("Location not found. Try searching for a nearby landmark or street name.");
+        }
+      } catch (err) {
+        console.error("Geocoding failed", err);
+      }
+    }
+
+    // --- Main Plot Drawing ---
+    function toggleDrawingPlot() {
+      const btn = document.getElementById('btn-draw-plot');
+      if (currentDrawMode !== 'plot') {
+        // If drawing neighbor, cancel neighbor first
+        if (currentDrawMode === 'neighbor') cancelDrawingNeighbor();
+
+        clearPlot();
+        currentDrawMode = 'plot';
+        btn.textContent = "Finish / Close Plot";
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-active-drawing');
+        document.getElementById('draw-instruction').textContent = "Drawing Main Plot: Click points on the map to define plot corners. Double-click or click near the first point to close!";
+        map.getContainer().style.cursor = 'crosshair';
+      } else {
+        finishDrawingPlot();
+      }
+    }
+
+    function finishDrawingPlot() {
+      if (plotPoints.length < 3) {
+        alert("Please click at least 3 points on the map to define an architectural plot.");
+        return;
+      }
+      currentDrawMode = null;
+      const btn = document.getElementById('btn-draw-plot');
+      btn.textContent = "Redraw Plot";
+      btn.classList.remove('btn-active-drawing');
+      btn.classList.add('btn-primary');
+      map.getContainer().style.cursor = '';
+
+      // Clear temp graphics
+      tempPlotMarkers.forEach(m => map.removeLayer(m));
+      tempPlotMarkers = [];
+      if (tempPlotPolyline) map.removeLayer(tempPlotPolyline);
+
+      // Create permanent plot polygon
+      plotPolygon = L.polygon(plotPoints, {
+        color: '#c0392b',
+        weight: 3,
+        fillColor: '#c0392b',
+        fillOpacity: 0.12
+      }).addTo(map);
+
+      recalculate();
+    }
+
+    function clearPlot() {
+      currentDrawMode = null;
+      plotPoints = [];
+      tempPlotMarkers.forEach(m => map.removeLayer(m));
+      tempPlotMarkers = [];
+      if (tempPlotPolyline) map.removeLayer(tempPlotPolyline);
+      if (plotPolygon) map.removeLayer(plotPolygon);
+      if (setbackPolygon) map.removeLayer(setbackPolygon);
+      contextBuildingsLayer.clearLayers();
+      contextRoadsLayer.clearLayers();
+      plotPolygon = null;
+      setbackPolygon = null;
+      currentCalculationToken = null;
+
+      const btn = document.getElementById('btn-draw-plot');
+      btn.textContent = "Start Drawing Plot";
+      btn.classList.remove('btn-active-drawing');
+      btn.classList.add('btn-primary');
+      map.getContainer().style.cursor = '';
+
+      // Reset labels
+      document.getElementById('val-plot-area').textContent = "0.00 sq.m (0.00 sq.ft)";
+      document.getElementById('val-perimeter').textContent = "0.00 m";
+      document.getElementById('val-setback-loss').textContent = "0.00 sq.m";
+      document.getElementById('val-buildable-area').textContent = "0.00 sq.m";
+      document.getElementById('val-coverage').textContent = "0.0%";
+      document.getElementById('val-gfa').textContent = "0.00 sq.m";
+      document.getElementById('val-fsi').textContent = "0.00";
+      document.getElementById('val-survey-point').textContent = "-";
+      document.getElementById('val-context-buildings').textContent = userNeighbors.length;
+      document.getElementById('draw-instruction').textContent = "Click 'Start Drawing Plot', then click 3 or more points on the map to define the boundary.";
+    }
+
+    // --- Neighbor Building Drawing & Management ---
+    function toggleDrawingNeighbor() {
+      const btn = document.getElementById('btn-draw-neighbor');
+      if (currentDrawMode !== 'neighbor') {
+        // If drawing plot, cancel plot
+        if (currentDrawMode === 'plot') {
+          clearPlot();
+        }
+        currentDrawMode = 'neighbor';
+        neighborDrawPoints = [];
+        tempNeighborMarkers.forEach(m => map.removeLayer(m));
+        tempNeighborMarkers = [];
+        if (tempNeighborPolyline) map.removeLayer(tempNeighborPolyline);
+
+        btn.textContent = "Cancel Mapping";
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-active-neighbor');
+        document.getElementById('draw-instruction').textContent = "Mapping Neighbor Rooftop: Click 3 or 4 corners directly over a neighboring rooftop on the satellite map. Double-click or click near the first point to complete!";
+        map.getContainer().style.cursor = 'crosshair';
+      } else {
+        cancelDrawingNeighbor();
+      }
+    }
+
+    function cancelDrawingNeighbor() {
+      currentDrawMode = null;
+      neighborDrawPoints = [];
+      tempNeighborMarkers.forEach(m => map.removeLayer(m));
+      tempNeighborMarkers = [];
+      if (tempNeighborPolyline) map.removeLayer(tempNeighborPolyline);
+
+      const btn = document.getElementById('btn-draw-neighbor');
+      btn.textContent = "+ Map Neighbor Building";
+      btn.classList.remove('btn-active-neighbor');
+      btn.classList.add('btn-secondary');
+      map.getContainer().style.cursor = '';
+      document.getElementById('draw-instruction').textContent = "Neighbor mapping cancelled. You can map another rooftop or download site files.";
+    }
+
+    function completeNeighborDrawing() {
+      if (neighborDrawPoints.length < 3) {
+        alert("Please click at least 3 corners of the neighboring building rooftop.");
+        return;
+      }
+      pendingNeighborCoords = [...neighborDrawPoints];
+
+      // Clean up temp drawing graphics
+      neighborDrawPoints = [];
+      tempNeighborMarkers.forEach(m => map.removeLayer(m));
+      tempNeighborMarkers = [];
+      if (tempNeighborPolyline) map.removeLayer(tempNeighborPolyline);
+
+      currentDrawMode = null;
+      const btn = document.getElementById('btn-draw-neighbor');
+      btn.textContent = "+ Map Neighbor Building";
+      btn.classList.remove('btn-active-neighbor');
+      btn.classList.add('btn-secondary');
+      map.getContainer().style.cursor = '';
+
+      openNeighborModal(pendingNeighborCoords);
+    }
+
+    function openNeighborModal(coords) {
+      const nextNum = userNeighbors.length + 1;
+      document.getElementById('modal-nb-name').value = `Neighbor Block ${nextNum}`;
+      document.getElementById('modal-nb-floors').value = 3;
+      document.getElementById('modal-nb-fheight').value = 3.2;
+      updateModalSummary();
+      document.getElementById('neighbor-modal').style.display = 'flex';
+    }
+
+    function updateModalSummary() {
+      const floors = parseInt(document.getElementById('modal-nb-floors').value) || 3;
+      const fHeight = parseFloat(document.getElementById('modal-nb-fheight').value) || 3.2;
+      const totalH = (floors * fHeight).toFixed(1);
+      document.getElementById('modal-nb-total-h').textContent = `${totalH} meters (${floors} storeys)`;
+    }
+
+    function cancelNeighborModal() {
+      pendingNeighborCoords = [];
+      document.getElementById('neighbor-modal').style.display = 'none';
+      document.getElementById('draw-instruction').textContent = "Neighbor building discarded.";
+    }
+
+    function saveNeighborModal() {
+      if (!pendingNeighborCoords || pendingNeighborCoords.length < 3) return;
+
+      const name = document.getElementById('modal-nb-name').value.trim() || `Neighbor Block ${userNeighbors.length + 1}`;
+      const floors = parseInt(document.getElementById('modal-nb-floors').value) || 3;
+      const fHeight = parseFloat(document.getElementById('modal-nb-fheight').value) || 3.2;
+      const height_m = parseFloat((floors * fHeight).toFixed(1));
+      const id = 'nb_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+
+      // Create permanent Leaflet polygon for this neighbor
+      const poly = L.polygon(pendingNeighborCoords, {
+        color: '#1e293b',
+        weight: 2,
+        fillColor: '#475569',
+        fillOpacity: 0.45
+      }).addTo(userNeighborsLayerGroup);
+
+      poly.bindTooltip(`<b>${name}</b><br>${floors} Storeys (+${height_m}m)`, { sticky: true });
+      poly.bindPopup(`
+        <div style="font-size: 12px; font-family: sans-serif; min-width: 150px;">
+          <strong style="color: #1e293b;">${name}</strong><br>
+          <span style="color: #64748b;">Floors:</span> <b>${floors}</b> (${height_m}m)<br>
+          <button onclick="deleteNeighbor('${id}')" style="margin-top: 8px; width: 100%; padding: 5px 8px; background: #fed7d7; color: #9b2c2c; border: 1px solid #feb2b2; border-radius: 3px; font-size: 11px; font-weight: 700; cursor: pointer;">Delete Building</button>
+        </div>
+      `);
+
+      const neighborObj = {
+        id: id,
+        name: name,
+        floors: floors,
+        floorHeight: fHeight,
+        height_m: height_m,
+        coordinates: pendingNeighborCoords,
+        layer: poly
+      };
+
+      userNeighbors.push(neighborObj);
+      pendingNeighborCoords = [];
+      document.getElementById('neighbor-modal').style.display = 'none';
+
+      updateNeighborUIList();
+
+      document.getElementById('draw-instruction').textContent = `Neighbor building "${name}" added! Click "+ Map Neighbor Building" to outline another rooftop, or download deliverables.`;
+
+      // If main plot is already present, recalculate to update IFC and DXF
+      if (plotPolygon && plotPoints.length >= 3) {
+        recalculate();
+      }
+    }
+
+    function deleteNeighbor(id) {
+      const idx = userNeighbors.findIndex(n => n.id === id);
+      if (idx !== -1) {
+        const item = userNeighbors[idx];
+        if (item.layer) userNeighborsLayerGroup.removeLayer(item.layer);
+        userNeighbors.splice(idx, 1);
+        updateNeighborUIList();
+        if (plotPolygon && plotPoints.length >= 3) {
+          recalculate();
+        }
+      }
+    }
+
+    function clearAllNeighbors() {
+      userNeighbors.forEach(n => {
+        if (n.layer) userNeighborsLayerGroup.removeLayer(n.layer);
+      });
+      userNeighbors = [];
+      updateNeighborUIList();
+      if (plotPolygon && plotPoints.length >= 3) {
+        recalculate();
+      }
+    }
+
+    function updateNeighborUIList() {
+      const listContainer = document.getElementById('neighbor-list');
+      const badge = document.getElementById('badge-neighbor-count');
+      badge.textContent = `${userNeighbors.length} Mapped`;
+
+      if (userNeighbors.length === 0) {
+        listContainer.innerHTML = `
+          <div id="neighbor-empty-msg" style="padding: 8px 10px; text-align: center; color: #94a3b8; font-size: 11px;">
+            No neighbor buildings mapped yet. Click "+ Map Neighbor Building" to outline surrounding rooftops.
+          </div>
+        `;
+        return;
+      }
+
+      let html = '';
+      userNeighbors.forEach(n => {
+        html += `
+          <div class="neighbor-item">
+            <div class="neighbor-item-info">
+              <div class="neighbor-item-dot"></div>
+              <div>
+                <strong>${n.name}</strong>
+                <span style="color: #64748b; margin-left: 4px;">(${n.floors} Fl / ${n.height_m}m)</span>
+              </div>
+            </div>
+            <button class="neighbor-del-btn" onclick="deleteNeighbor('${n.id}')" title="Delete neighbor">Remove</button>
+          </div>
+        `;
+      });
+      listContainer.innerHTML = html;
+    }
+
+    // --- Map Click & Double Click Handling ---
+    map.on('click', function(e) {
+      const pt = [e.latlng.lat, e.latlng.lng];
+
+      if (currentDrawMode === 'plot') {
+        plotPoints.push(pt);
+        const marker = L.circleMarker(pt, { radius: 5, color: '#c0392b', fillColor: '#e74c3c', fillOpacity: 0.9 }).addTo(map);
+        tempPlotMarkers.push(marker);
+
+        if (tempPlotPolyline) map.removeLayer(tempPlotPolyline);
+        tempPlotPolyline = L.polyline(plotPoints, { color: '#c0392b', weight: 2, dashArray: '4, 4' }).addTo(map);
+
+        // Check if closed
+        if (plotPoints.length >= 3) {
+          const first = plotPoints[0];
+          const distMeters = map.distance(e.latlng, L.latLng(first[0], first[1]));
+          if (plotPoints.length > 3 && distMeters < 8.0) {
+            finishDrawingPlot();
+          }
+        }
+      } else if (currentDrawMode === 'neighbor') {
+        neighborDrawPoints.push(pt);
+        const marker = L.circleMarker(pt, { radius: 5, color: '#1e293b', fillColor: '#475569', fillOpacity: 0.9 }).addTo(map);
+        tempNeighborMarkers.push(marker);
+
+        if (tempNeighborPolyline) map.removeLayer(tempNeighborPolyline);
+        tempNeighborPolyline = L.polyline(neighborDrawPoints, { color: '#1e293b', weight: 2, dashArray: '4, 4' }).addTo(map);
+
+        // Check if closed
+        if (neighborDrawPoints.length >= 3) {
+          const first = neighborDrawPoints[0];
+          const distMeters = map.distance(e.latlng, L.latLng(first[0], first[1]));
+          if (neighborDrawPoints.length > 3 && distMeters < 8.0) {
+            completeNeighborDrawing();
+          }
+        }
+      }
+    });
+
+    map.on('dblclick', function(e) {
+      if (currentDrawMode === 'plot' && plotPoints.length >= 3) {
+        finishDrawingPlot();
+      } else if (currentDrawMode === 'neighbor' && neighborDrawPoints.length >= 3) {
+        completeNeighborDrawing();
+      }
+    });
+
+    // --- Server Communication & Deliverable Generation ---
+    async function recalculate() {
+      if (!plotPolygon || plotPoints.length < 3) return;
+
+      const setback = parseFloat(document.getElementById('setback-m').value) || 3.0;
+      const floors = parseInt(document.getElementById('floors-n').value) || 3;
+      const floorHeight = parseFloat(document.getElementById('floor-height-m').value) || 3.2;
+      const plotName = document.getElementById('plot-name').value || "Plot_A";
+      const includeContext = document.getElementById('chk-context').checked;
+
+      const payload = {
+        coordinates: plotPoints,
+        setback_m: setback,
+        floors: floors,
+        floor_height_m: floorHeight,
+        name: plotName,
+        include_context: includeContext,
+        context_radius_m: 150,
+        user_neighbors: userNeighbors.map(n => ({
+          id: n.id,
+          name: n.name,
+          coordinates: n.coordinates,
+          floors: n.floors,
+          height_m: n.height_m
+        }))
+      };
+
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.error) {
+          alert("Error: " + data.error);
+          return;
+        }
+
+        currentCalculationToken = data.token;
+
+        // Update UI Metrics
+        document.getElementById('val-plot-area').textContent = `${data.plot_area_sqm.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})} sq.m (${data.plot_area_sqft.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})} sq.ft)`;
+        document.getElementById('val-perimeter').textContent = `${data.perimeter_m.toFixed(1)} m`;
+        document.getElementById('val-setback-loss').textContent = `${data.setback_loss_sqm.toFixed(1)} sq.m`;
+        document.getElementById('val-buildable-area').textContent = `${data.buildable_sqm.toFixed(1)} sq.m`;
+        document.getElementById('val-coverage').textContent = `${data.coverage_pct.toFixed(1)}%`;
+        document.getElementById('val-gfa').textContent = `${data.total_builtup_sqm.toFixed(1)} sq.m`;
+        document.getElementById('val-fsi').textContent = data.fsi.toFixed(2);
+        document.getElementById('val-crs').textContent = `EPSG:${data.utm_epsg} (UTM Zone ${data.utm_zone}N)`;
+        document.getElementById('val-survey-point').textContent = `E: ${data.utm_origin_x.toFixed(1)}m, N: ${data.utm_origin_y.toFixed(1)}m`;
+
+        const totalBldgsInBIM = (data.context_buildings || []).length;
+        const roadCount = (data.context_roads || []).length;
+        document.getElementById('val-context-buildings').textContent = `${totalBldgsInBIM} user-mapped`;
+
+        let statusParts = [`${totalBldgsInBIM} neighbor buildings (user-traced)`];
+        if (roadCount > 0) statusParts.push(`${roadCount} real roads from OSM`);
+        document.getElementById('draw-instruction').textContent = `Analysis complete! ${statusParts.join(', ')}. All deliverables ready for Archicad 29.`;
+
+        // Render setback polygon on map
+        if (setbackPolygon) map.removeLayer(setbackPolygon);
+        if (data.setback_latlngs && data.setback_latlngs.length >= 3) {
+          setbackPolygon = L.polygon(data.setback_latlngs, {
+            color: '#2980b9',
+            weight: 2,
+            dashArray: '5, 5',
+            fillColor: '#3498db',
+            fillOpacity: 0.35
+          }).addTo(map);
+          setbackPolygon.bindPopup(`<b>Buildable Footprint</b><br>Envelope: ${data.buildable_sqm.toFixed(1)} m²<br>Permissible Coverage: ${data.coverage_pct.toFixed(1)}%`);
+        }
+
+        // Render real OSM roads
+        contextRoadsLayer.clearLayers();
+
+        if (data.context_roads) {
+          data.context_roads.forEach(r => {
+            if (r.latlngs && r.latlngs.length >= 2) {
+              // Weight roads by type for visual accuracy
+              let weight = 3;
+              const rtype = r.type || '';
+              if (['motorway','trunk','primary'].includes(rtype)) weight = 5;
+              else if (['secondary','tertiary'].includes(rtype)) weight = 4;
+              else if (['residential','service','living_street'].includes(rtype)) weight = 2.5;
+              else if (['footway','pedestrian','cycleway','path'].includes(rtype)) weight = 1.5;
+
+              const line = L.polyline(r.latlngs, {
+                color: '#64748b',
+                weight: weight,
+                opacity: 0.85
+              }).addTo(contextRoadsLayer);
+              const roadLabel = r.name ? `${r.name} (${rtype})` : `Unnamed ${rtype}`;
+              line.bindTooltip(roadLabel, { sticky: true });
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Fetch failed", err);
+      }
+    }
+
+    function downloadAsset(type) {
+      if (!currentCalculationToken) {
+        alert("Please draw a plot on the map first!");
+        return;
+      }
+      window.location.href = `/api/download?type=${type}&token=${currentCalculationToken}`;
+    }
+  </script>
+</body>
+</html>

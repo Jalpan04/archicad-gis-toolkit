@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Rust
+rust_gis_core/target/
+
+# Exports (generated files)
+interactive_map_app/exports/
+cache/
+*.db
+*.sqlite
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Antigravity / Gemini
+.gemini/
